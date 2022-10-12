@@ -1,9 +1,20 @@
 # CELESTE #
-Celeste is a resilient, open-source cloud architecture for implementing genomics workflows and has successfully analyzed petabytes of participant genomic information as a part of Baylor College of Medicine's participation in whole genome sequencing analysis for the All of Us Research Program – thereby enabling other large-scale sequencing efforts with a comprehensive set of tools to power analysis.
+Celeste is a resilient, open-source cloud architecture for implementing genomics workflows that has successfully analyzed petabytes of participant genomic information as a part of the All of Us Research Program – thereby enabling other large-scale sequencing efforts with a comprehensive set of tools to power analysis.
 
-This is a robust infrastructure deployment that provisions an Amazon Virtual Private Cloud (VPC) with the needed networking components to process clinical samples securely, along with an AWS Batch job management system, a workflow orchestration system that comprises of serverless AWS Lambda functions and Amazon Simple Notification Service (SNS) topics that respond to the appearance of specific data files, multiple software containers for jobs that carry out standardized bioinformatics pipeline steps, a CloudWatch EventBridge and serverless system that automatically handles job failures and resubmissions due to Spot Instance interruption, and S3 lifecycle rules that automatically handle archival and cleanup for pipeline outputs. This infrastructure is captured in CloudFormation templates, complete with Lambda functions containing specific bioinformatic software command-line parameters and a data-tagging system for use in lifecycle management. The bioinformatics pipeline packaged within Celeste is suitable for clinical and population-scale sequencing projects. The reusability of pipeline components allows this. 
+This robust infrastructure deployment provisions:
+    - An Amazon Virtual Private Cloud (VPC) with the needed networking components to process clinical samples securely
+    - An AWS Batch job management system
+    - A workflow orchestration system that comprises of serverless AWS Lambda functions and Amazon Simple Notification Service (SNS) topics that respond to the appearance of specific data files
+    - Multiple software containers (available in DockerHub) for jobs that carry out standardized bioinformatics pipeline steps
+    - A CloudWatch EventBridge and serverless system that automatically handles job failures and resubmissions due to Spot Instance interruption, and S3 lifecycle rules that automatically handle archival and cleanup for pipeline outputs
+    - Infrastructure as Code (IaC) captured via CloudFormation templates, that deploy the above complete with Lambda functions containing specific bioinformatic software command-line parameters and a data-tagging system for use in data lifecycle management. 
 
-In the present day, a maximum of approximately 300-400 thousand jobs, related to human whole genome sequencing analysis, flow through Celeste monthly. 
+The bioinformatics pipeline packaged within Celeste is suitable for clinical and population-scale sequencing projects. In the present day, a maximum of approximately 300-400 thousand jobs, related to human whole genome sequencing analysis, flow through Celeste monthly. 
+
+![Hybrid Cloud](https://user-images.githubusercontent.com/35316399/195458866-5ea07ba1-e7ed-4af5-9e78-b3ebd0dea91b.png)
+
+* Webinar resource: https://pages.awscloud.com/GLOBAL-field-OE-allofus-on-demand-2021-confirmation.html?aliId=eyJpIjoiWWVnNW5oSEZCMGE3TnJCZCIsInQiOiJqbFZZajE0azBwUnB6UkNqMUUzQ2dBPT0ifQ%253D%253D
+* AWS Public Sector Blog Post: https://aws.amazon.com/blogs/publicsector/building-resilient-scalable-clinical-genomics-pipeline-aws/
 
 # DEPLOYMENT GUIDE #
 ---
