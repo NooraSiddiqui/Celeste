@@ -1,0 +1,113 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: This CloudFormation Template creates the following resources
+  (1) one cloudwatch event rule that is triggered upon AWS Batch job status
+      change to either SUCCEEDED or FAILED
+  (2) one lambda function that subscribes to the cloudwatch event rule and 
+      resubmits jobs that failed due to spot interruption/host termination
+  (3) one lambda role for the above function
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: S3 Asset Specification
+      Parameters:
+        - LambdaZipsBucket 
+        - LambdaZipsKeyPrefix
+    ParameterLabels:
+      LambdaZipsBucket:
+        default: Lambda Zips Bucket
+      LambdaZipsKeyPrefix:
+        default: Lambda Zips Key Prefix
+
+
+Parameters:
+  LambdaZipsBucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with
+      a hyphen (-).
+    Description: Bucket name containing lambda zip file(s).
+    Type: String
+  LambdaZipsKeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: key prefix can include numbers, lowercase letters
+      uppercase letters, hyphens (-), and must include a
+      forward slash (/) at the end of the prefix.
+    Description: S3 key prefix to Lambda zip file(s).
+    Type: String
+
+
+Resources:
+  LambdaExecutionPlusBatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: "arn:aws:iam::136669306241:policy/OperatorsGroup-Boundary"
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: LambdaExecutionPlusBatch
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            Effect: Allow
+            Action: 
+              - "batch:SubmitJob"
+            Resource: '*'
+  ResubBatchJobsLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Resubmits jobs that failed due to host intstance termination
+      FunctionName: resubBatchJobs # Use for non-unique physical ID
+      Handler: "resubBatchJobs.lambda_handler"
+      Role: !GetAtt
+        - LambdaExecutionPlusBatchRole
+        - Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${LambdaZipsKeyPrefix}resubBatchJobs.zip
+      Runtime: python3.8
+      Timeout: 100
+  BatchJobStateChangeRule:
+    Type: AWS::Events::Rule
+    Properties:
+      Description: Triggered on Batch job status change to SUCCEEDED or FAILED
+      Name: BatchJobStateChange
+      EventPattern:
+        source:
+          - aws.batch
+        detail-type:
+          - Batch Job State Change
+        detail:
+          status:
+            - "SUCCEEDED"
+            - "FAILED"
+      State: ENABLED
+      Targets:
+        - Arn: !GetAtt 
+            - ResubBatchJobsLambda
+            - Arn
+          Id: TargetFunctionV1
+  LambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: events.amazonaws.com
+      SourceArn: !GetAtt BatchJobStateChangeRule.Arn
+      FunctionName: !GetAtt
+        - ResubBatchJobsLambda
+        - Arn
+
+Outputs:
+  ResubBatchJobsLambda:
+    Value: !Ref ResubBatchJobsLambda
+    Export:
+      Name: !Sub JobResubmissionLambda-${AWS::Region}

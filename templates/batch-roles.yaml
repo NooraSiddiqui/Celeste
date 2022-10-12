@@ -1,0 +1,187 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Sets up AWS Batch-related roles, policies, and groups for
+  HGSC genomics workflows. 
+  Modified from s3://aws-quickstart/quickstart-illumina-dragen/templates/batch.yaml
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterLabels:
+      GenomicsS3Bucket:
+        default: Genomics Data Bucket
+      OperationsDataBucket:
+        default: Operations Data Bucket
+      WgsBucket:
+          default: Wgs Bucket
+      VpcId:
+        default: VPC ID
+
+
+Parameters:
+  GenomicsS3Bucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 genomics bucket name can include numbers,
+      lowercase letters, uppercase letters, and hyphens (-). It cannot
+      start or end with a hyphen (-).
+    Description: Name of S3 bucket for reading and writing genomics data.
+    Type: String
+  OperationsDataBucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 bucket name can include numbers,
+      lowercase letters, uppercase letters, and hyphens (-). It cannot
+      start or end with a hyphen (-).
+    Description: Name of S3 bucket operations data, such as CFn templates
+      or genomics data, such as bed files, references, etc.
+    Type: String
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The security group will launch within this specified VPC.
+
+
+Resources:
+  # Batch Setup
+  BatchSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: Allow https
+      VpcId: !Ref VpcId
+      SecurityGroupEgress:
+      - IpProtocol: tcp
+        FromPort: 443
+        ToPort: 443
+        CidrIp: 0.0.0.0/0
+  BatchServiceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "batch.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AWSBatchServiceRole
+  SpotFleetRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "spotfleet.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+      - "arn:aws:iam::aws:policy/service-role/AmazonEC2SpotFleetTaggingRole"  
+  S3ReadWritePolicyInstance:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: S3ReadWritePolicyInstance
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: S3ReadWritePolicyInstance
+            Effect: Allow
+            Action:
+            - "s3:GetBucketLocation"
+            - "s3:ListBucket"
+            - "s3:ListBucketVersions"
+            - "s3:GetObject"
+            - "s3:GetObjectVersion"
+            - "s3:PutObject"
+            - "s3:ListMultipartUploadParts"
+            - "s3:AbortMultipartUpload"
+            Resource:
+            - !Sub "arn:aws:s3:::${GenomicsS3Bucket}"
+            - !Sub "arn:aws:s3:::${GenomicsS3Bucket}/*"
+            - !Sub "arn:aws:s3:::${OperationsDataBucket}"
+            - !Sub "arn:aws:s3:::${OperationsDataBucket}/*"
+      Roles:
+      - !Ref InstanceRole
+  S3ReadWritePolicyJob:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: S3ReadWritePolicyJob
+      PolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Sid: S3ReadWritePolicyJob
+            Effect: Allow
+            Action:
+            - "s3:GetBucketLocation"
+            - "s3:ListBucket"
+            - "s3:ListBucketVersions"
+            - "s3:GetObject"
+            - "s3:GetObjectVersion"
+            - "s3:PutObject"
+            - "s3:ListMultipartUploadParts"
+            - "s3:AbortMultipartUpload"
+            Resource:
+            - !Sub "arn:aws:s3:::${GenomicsS3Bucket}"
+            - !Sub "arn:aws:s3:::${GenomicsS3Bucket}/*"
+            - !Sub "arn:aws:s3:::${OperationsDataBucket}"
+            - !Sub "arn:aws:s3:::${OperationsDataBucket}/*"
+      Roles:
+      - !Ref JobRole
+  # IAM role set up
+  JobRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ecs-tasks.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+  InstanceRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - "sts:AssumeRole"
+      ManagedPolicyArns:
+      - arn:aws:iam::aws:policy/service-role/AmazonEC2ContainerServiceforEC2Role
+  InstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Roles:
+      - !Ref InstanceRole
+      InstanceProfileName: !Ref InstanceRole
+
+
+Outputs:
+  BatchSecurityGroup: 
+    Value: !Ref BatchSecurityGroup
+  BatchServiceRole:
+    Value: !Ref BatchServiceRole
+  SpotFleetRole: 
+    Value: !Ref SpotFleetRole
+  S3ReadWritePolicyInstance:
+    Value: !Ref S3ReadWritePolicyInstance
+  S3ReadWritePolicyJob:
+    Value: !Ref S3ReadWritePolicyJob
+  JobRole:
+    Value: !GetAtt
+      - JobRole
+      - Arn
+  InstanceRole:
+    Value: !Ref InstanceRole
+  InstanceProfile:
+    Value: !Ref InstanceProfile

@@ -1,0 +1,61 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: This CloudFormation Template creates the following resources
+  (1) A private S3 bucket with AES256 encryption and versioning enabled. 
+      Lifecycle configuration for bucket specifies archival and non-archival
+      file transitions. Event notifications are enabled in a way that 
+      corresponds to the resources and connections spawned in the HGSCCL 
+      environment provisioned via other templates in this repository
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Configuration 
+      Parameters:
+      - S3Bucket
+    ParameterLabels:
+      S3Bucket:
+        default: S3 Bucket
+
+
+Parameters:
+  S3Bucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 bucket name can include numbers,
+      lowercase letters, uppercase letters, and hyphens (-). It cannot
+      start or end with a hyphen (-).
+    Description: Name of S3 bucket to create.
+    Type: String
+
+
+Resources:
+ Bucket:
+   Type: AWS::S3::Bucket
+   DeletionPolicy: Retain
+   UpdateReplacePolicy: Retain
+   Properties:
+     BucketName: !Sub "${S3Bucket}"
+     BucketEncryption: 
+       ServerSideEncryptionConfiguration: 
+       - ServerSideEncryptionByDefault:
+           SSEAlgorithm: AES256
+     VersioningConfiguration: 
+       Status: Disabled
+     AccessControl: Private
+     LifecycleConfiguration:
+       Rules:
+        - Id: rule-for-archive-no
+          TagFilters:
+            - Key: "archive"
+              Value: "no"
+          Status: Enabled
+        - Id: rule-for-archive-yes
+          TagFilters:
+            - Key: "archive"
+              Value: "yes"
+          Status: 'Enabled'
+          Transitions:
+            - StorageClass: "DEEP_ARCHIVE"
+              TransitionInDays: 60

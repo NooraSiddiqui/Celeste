@@ -1,0 +1,285 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: Sets up your AWS Batch Environment for running DRAGEN
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+      - Label:
+          default: DRAGEN parameters
+        Parameters:
+          - GenomicsS3Bucket
+          - DragenDockerImage
+          - OperationsDataBucket
+      - Label:
+          default: AWS Quick Start Configuration
+        Parameters:
+          - QSS3BucketName
+          - QSS3KeyPrefix
+      - Label:
+          default: AWS Batch Compute Environment Configuration
+        Parameters:
+          - VpcId
+          - SubnetIds
+          - BidPercentage
+          - ImageId
+          - Ec2KeyPair
+          - MinvCpus
+          - DesiredvCpus
+          - InstanceType
+          - RetryNumber
+          - DragenTimeout
+      - Label:
+          default: AWS Environment Configuration
+        Parameters:
+          - EnvironmentValue    
+  ParameterLabels:
+      GenomicsS3Bucket:
+        default: Genomics Data Bucket
+      DragenDockerImage:
+        default: Dragen Docker Image
+      OperationsDataBucket:
+        default: Operations Data Bucket
+      QSS3KeyPrefix:
+        default: Quick Start S3 Key Prefix
+      QSS3BucketName:
+        default: Quick Start S3 Bucket Name
+      VpcId:
+        default: VPC ID
+      SubnetIds:
+        default: Subnet Ids
+      ImageId:
+        default: Image Id
+      Ec2KeyPair:
+        default: Key Pair
+      InstanceType:
+        default: Instance Type
+      BidPercentage:
+        default: Spot Bid Percentage
+      MinvCpus:
+        default: Min vCPUs
+      DesiredvCpus:
+        default: Desired vCPUs
+      RetryNumber:
+        default: AWS Batch Retry Number
+      DragenTimeout:
+        default: Dragen Timeout
+      EnvironmentValue:
+        default: Environment Value
+
+
+Parameters:
+  GenomicsS3Bucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 genomics bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Description: S3 bucket name for the bucket to which you'll read and write genomics data. 
+    Type: String
+  DragenDockerImage:
+    Type: String
+    Description: Path to DRAGEN docker image repository URI.
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Description: S3 bucket name for the Quick Start assets. Quick Start bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and a forward slash (/) at the end of the prefix.
+    Description: S3 key prefix for the Quick Start assets. Quick Start key prefix
+      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
+    Type: String
+  OperationsDataBucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 genomics bucket name can include numbers,
+      lowercase letters, uppercase letters, and hyphens (-). It cannot
+      start or end with a hyphen (-).
+    Description: Name of S3 bucket for reading genomics operations data
+      such as bed files, references, etc.
+    Type: String
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: VpcId containing each of the SubnetIds
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets you want your batch compute environment to launch in. Must be private subnets and in the VPC specified by VpcId.
+  BidPercentage:
+    AllowedPattern: (?:\b|-)([1-9]{1,2}[0]?|100)\b
+    ConstraintDescription: Spot Bid Percentage should be between 1 and 100, inclusive
+    Description: The bid percentage set for your AWS Batch Managed Compute Environment with Spot Instances.
+    Type: String
+  ImageId:
+    Type: AWS::EC2::Image::Id
+    Description: AMI you want your AWS Batch Managed Compute Environment to use
+  Ec2KeyPair:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Amazon EC2 Key Pair for EC2 instances launched in your compute environment
+  MinvCpus:
+    Type: String
+    Description: Minimum number of CPUs in the compute environment. Default 0.
+    Default: 0
+    AllowedPattern: "[0-9]+"
+  DesiredvCpus:
+    Type: String
+    Description: Desired number of CPUs in the compute environment to launch with. Default 0.
+    Default: 0
+    AllowedPattern: "[0-9]+"
+  RetryNumber:
+    Type: String
+    Default: 5
+    Description: Number of retries for each AWS Batch job. Integer required.
+    MaxLength: 1
+    AllowedPattern: (?:\b|-)([1-9]|10)\b
+    ConstraintDescription: Value between 1 and 10
+  DragenTimeout:
+    Type: String
+    Description: Number of seconds before Dragen Batch job times out.
+    AllowedPattern: ^[1-9]\d*$
+    ConstraintDescription: Positive integer not beginning with 0
+  InstanceType:
+    AllowedValues:
+      - f1.2xlarge
+      - f1.4xlarge
+      - f1.16xlarge
+    Description: Amazon EC2 instance type for DRAGEN in the AWS Batch Compute Environment.
+    Type: String
+  EnvironmentValue:
+    Description: Environment to deploy. Will be appended as a suffix to select resources.
+    Type: String
+
+
+Conditions:
+  Is2xl: !Equals [!Ref InstanceType, 'f1.2xlarge']
+  Is4xl: !Equals [!Ref InstanceType, 'f1.4xlarge']
+  Is16xl: !Equals [!Ref InstanceType, 'f1.16xlarge']
+
+
+Resources:
+  BatchRolesStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/batch-roles.yaml
+      Parameters:
+        VpcId: !Ref VpcId
+        GenomicsS3Bucket: !Ref GenomicsS3Bucket
+        OperationsDataBucket: !Ref OperationsDataBucket
+  DragenSpot:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub dragen-spot-${EnvironmentValue} 
+      ServiceRole: !GetAtt BatchRolesStack.Outputs.BatchServiceRole
+      Type: MANAGED
+      State: ENABLED
+      ComputeResources:
+        BidPercentage: !Ref BidPercentage
+        Ec2KeyPair: !Ref Ec2KeyPair
+        ImageId: !Ref ImageId
+        InstanceRole: !GetAtt BatchRolesStack.Outputs.InstanceRole
+        InstanceTypes: [!Ref InstanceType]
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        MaxvCpus: 2400 # 16 vCPUs per f1.4x; we're willing to get 150 dragen spot instances
+        SecurityGroupIds:
+          - !GetAtt BatchRolesStack.Outputs.BatchSecurityGroup
+        SpotIamFleetRole: !GetAtt BatchRolesStack.Outputs.SpotFleetRole
+        Subnets: !Ref SubnetIds
+        Type: SPOT
+        Tags: 
+          purpose: dragen
+          env: prod
+          compute: !Sub batch_${InstanceType}_spot
+  DragenOnDemand:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName:  !Sub dragen-ondemand-${EnvironmentValue}
+      ServiceRole: !GetAtt BatchRolesStack.Outputs.BatchServiceRole
+      Type: MANAGED
+      State: ENABLED
+      ComputeResources:
+        Ec2KeyPair: !Ref Ec2KeyPair
+        ImageId: !Ref ImageId 
+        InstanceRole: !GetAtt BatchRolesStack.Outputs.InstanceRole
+        InstanceTypes: [!Ref InstanceType]
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        MaxvCpus: 2400 # 16 vCPUs per f1.4x; 150 instances
+        SecurityGroupIds:
+          - !GetAtt BatchRolesStack.Outputs.BatchSecurityGroup
+        Subnets: !Ref SubnetIds
+        Type: EC2
+        Tags:
+          purpose: dragen
+          env: prod
+          compute: !Sub batch_${InstanceType}_ondemand
+  DragenJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub dragen-queue-${EnvironmentValue}
+      Priority: 100
+      State: ENABLED
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref DragenSpot
+        - Order: 2
+          ComputeEnvironment: !Ref DragenOnDemand
+  DragenJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub dragen-${EnvironmentValue} 
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      Timeout: 
+         AttemptDurationSeconds: !Ref DragenTimeout
+      ContainerProperties:
+        Image: !Ref DragenDockerImage
+        Vcpus: !If [Is2xl, 8, !If [Is4xl, 16, 64]] # logically correct because !If [bool, true, false] !If [Is4xl, 16, (else use 16x value)]
+        Memory: !If [Is2xl, 120000, !If [Is4xl, 240000, 800000]]
+        JobRoleArn: !GetAtt 
+          - BatchRolesStack
+          - Outputs.JobRole
+        MountPoints:
+          - ContainerPath: "/scratch"
+            ReadOnly: False
+            SourceVolume: docker_scratch
+          - ContainerPath: "/ephemeral"
+            ReadOnly: False
+            SourceVolume: docker_ephemeral
+          - ContainerPath: "/opt/edico"
+            ReadOnly: False
+            SourceVolume: docker_opt_edico
+          - ContainerPath: "/var/lib/edico"
+            ReadOnly: False
+            SourceVolume: docker_var_lib_edico
+        Volumes:
+          - Name: docker_scratch
+            Host:
+              SourcePath: "/scratch"
+          - Name: docker_ephemeral
+            Host:
+              SourcePath: "/ephemeral"
+          - Name: docker_opt_edico
+            Host:
+              SourcePath: "/opt/edico"
+          - Name: docker_var_lib_edico
+            Host:
+              SourcePath: "/var/lib/edico"
+
+
+Outputs:
+  DragenSpot:
+    Value: !Ref DragenSpot
+  DragenComputeEnvironmentOnDemand:
+    Value: !Ref DragenOnDemand
+  JobQueue:
+    Value: !Ref DragenJobQueue
+  DragenJobDefinition:
+    Value: !Ref DragenJobDefinition

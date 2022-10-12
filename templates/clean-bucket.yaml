@@ -1,0 +1,47 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: This CloudFormation Template removes non-versioned files from an S3 Bucket.
+  (qs-1nlegmi0o)
+
+
+Parameters:
+  Bucket:
+    Description: The Bucket required for the custom resource to function.
+    Type: String
+  ServiceToken:
+    Description: The Role ARN required to execute the Custom Resource.
+    Type: String
+  LambdaZipsBucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with
+      a hyphen (-).
+    Description: Bucket name containing lambda zip files
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers,
+      lowercase letters, uppercase letters, hyphens (-), and a forward slash
+      (/) at the end of the prefix.
+    Description: S3 key prefix for the Quick Start assets. Contains path to Lambda code.
+    Type: String
+
+
+Resources:
+  UpdateConfig:
+    Type: Custom::ConfigFile
+    Properties:
+      ServiceToken: !GetAtt UpdateConfigFunction.Arn
+      Region: !Ref AWS::Region
+      Bucket: !Ref Bucket
+  UpdateConfigFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Removes non-versioned files from an S3 Bucket.
+      Handler: updateConfigLambda.handler
+      Runtime: python3.8
+      Role: !Ref ServiceToken
+      Timeout: 240
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/updateConfig/updateConfigLambda.zip

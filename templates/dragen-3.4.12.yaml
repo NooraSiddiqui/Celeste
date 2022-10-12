@@ -1,0 +1,312 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: This template deploys an environment to run Edico Genome's DRAGEN software using AWS Batch. (qs-1oqea624b)
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+        - VpcId
+        - PrivateSubnet1ID
+        - PrivateSubnet2ID
+        - PrivateSubnet3ID
+        - PrivateSubnet4ID
+    - Label:
+        default: DRAGEN Quick Start Configuration
+      Parameters:
+        - KeyPairName
+        - InstanceType
+        - BidPercentage
+        - MinvCpus
+        - DesiredvCpus
+        - GenomicsS3Bucket
+        - RetryNumber
+        - DragenTimeout
+        - OperationsDataBucket
+    - Label:
+        default: AWS Quick Start Configuration
+      Parameters:
+        - QSS3BucketName
+        - QSS3KeyPrefix
+    - Label:
+        default: AWS Environment Configuration
+      Parameters:
+        - EnvironmentValue
+    ParameterLabels:
+      KeyPairName:
+        default: Key Pair Name
+      PrivateSubnet1ID:
+        default: Private Subnet 1 ID
+      PrivateSubnet2ID:
+        default: Private Subnet 2 ID
+      PrivateSubnet3ID:
+        default: Private Subnet 3 ID
+      PrivateSubnet4ID:
+        default: Private Subnet 4 ID
+      VpcId:
+        default: Vpc Id
+      QSS3KeyPrefix:
+        default: Quick Start S3 Key Prefix
+      QSS3BucketName:
+        default: Quick Start S3 Bucket Name
+      InstanceType:
+        default: Instance Type
+      BidPercentage:
+        default: Spot Bid Percentage
+      RetryNumber:
+        default: AWS Batch Retry Number
+      DragenTimeout: 
+        default: Dragen Timeout
+      MinvCpus:
+        default: Min vCPUs
+      DesiredvCpus:
+        default: Desired vCPUs
+      GenomicsS3Bucket:
+        default: Genomics Data Bucket
+      OperationsDataBucket:
+        default: Operations Data Bucket
+      EnvironmentValue:
+        default: Environment Value
+
+
+Parameters:
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Public/private key pairs allow you to securely connect to your instance after it launches.
+  InstanceType:
+    Type: String
+    Description: Amazon EC2 instance type. DRAGEN requires an FPGA to run, so the instance type must be in the F1 instance family.
+    Default: f1.2xlarge
+    AllowedValues:
+      - f1.2xlarge
+      - f1.4xlarge
+      - f1.16xlarge
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of your existing VPC (e.g., vpc-0343606e).
+  PrivateSubnet1ID:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the private subnet in Availability Zone 1 in your existing VPC (e.g., subnet-a0246dcd).
+  PrivateSubnet2ID:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the private subnet in Availability Zone 2 in your existing VPC (e.g., subnet-b58c3d67).
+  PrivateSubnet3ID:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the private subnet in Availability Zone 3 in your existing VPC (e.g., subnet-b58c3d67).
+  PrivateSubnet4ID:
+    Type: AWS::EC2::Subnet::Id
+    Description: The ID of the private subnet in Availability Zone 4 in your existing VPC (e.g., subnet-b58c3d67).
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Description: S3 bucket name for the Quick Start assets. Quick Start bucket name
+      can include numbers, lowercase letters, uppercase letters, and hyphens (-).
+      It cannot start or end with a hyphen (-).
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers, lowercase letters,
+      uppercase letters, hyphens (-), and a forward slash (/) at the end of the prefix.
+    Description: S3 key prefix for the Quick Start assets. Quick Start key prefix
+      can include numbers, lowercase letters, uppercase letters, hyphens (-), and
+      forward slash (/).
+    Type: String
+  BidPercentage:
+    AllowedPattern: (?:\b|-)([1-9]{1,2}[0]?|100)\b
+    ConstraintDescription: Spot Bid Percentage should be between 1 and 100, inclusive
+    Description: The bid percentage set for your AWS Batch Managed Compute Environment with Spot Instances.
+    Default: 50
+    Type: String
+  RetryNumber:
+    AllowedPattern: (?:\b|-)([1-9]|10)\b
+    ConstraintDescription: AWS Batch job retry number should be between 1 and 10
+    Description: Retry number for an AWS Batch job
+    Default: 5
+    Type: String
+  MinvCpus:
+    AllowedPattern: ^(0|[1-9][0-9]{0,2}|1000)$
+    ConstraintDescription: Valid between 0 and 1000, inclusive
+    Description: Minimum vCPUs for your AWS Batch Compute Environment. Recommend 0.
+    Default: 0
+    Type: String
+  DesiredvCpus:
+    AllowedPattern: ^(0|[1-9][0-9]{0,2}|1000)$
+    ConstraintDescription: Valid between 1 and 1000, inclusive
+    Description: Desired vCPUs for your AWS Batch Compute Environment. Recommend the same number as MinvCpus for cost-optimization.
+    Default: 0
+    Type: String
+  GenomicsS3Bucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 genomics bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with a hyphen
+      (-).
+    Description: S3 bucket name for the bucket to which you'll read and write genomics data. 
+    Type: String
+  OperationsDataBucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 genomics bucket name can include numbers,
+      lowercase letters, uppercase letters, and hyphens (-). It cannot
+      start or end with a hyphen (-).
+    Description: Name of S3 bucket for reading genomics operations data
+      such as bed files, references, etc.
+    Type: String
+  DragenTimeout:
+    Type: String
+    Description: Number of seconds before Dragen Batch job times out.
+    AllowedPattern: ^[1-9]\d*$
+    ConstraintDescription: Positive integer not beginning with 0
+  EnvironmentValue:
+    Description: Environment to deploy. Will be appended as a suffix to select resources.
+    Type: String
+
+
+Mappings:
+  AWSAMIRegionMap:
+    us-east-1:
+      DRAGEN: ami-0040c36f65520ec56 #3.4.12 in us-east-1
+    us-west-2:
+      DRAGEN: ami-0b2f2fab117e0451e #3.7.6 in us-west-2
+
+
+Rules:
+  KeyPairsNotEmpty:
+    Assertions:
+    - Assert:
+        !Not
+        - Fn::EachMemberEquals:
+          - Fn::RefAll: AWS::EC2::KeyPair::KeyName
+          - ''
+      AssertDescription: All key pair parameters must not be empty
+  SubnetsInVPC:
+    Assertions:
+    - Assert:
+        Fn::EachMemberIn:
+        - Fn::ValueOfAll:
+          - AWS::EC2::Subnet::Id
+          - VpcId
+        - Fn::RefAll: AWS::EC2::VPC::Id
+      AssertDescription: All subnets must be in the VPC
+  DRAGENSupportedRegionRule:
+    Assertions:
+    - Assert:
+        Fn::Contains:
+        - - us-east-1
+          - us-west-2
+#          - eu-west-1
+#          - ap-southeast-2
+        - !Ref AWS::Region
+      AssertDescription: This Quick Start utilizes a private Dragen AMI which is only available
+         in us-east-1 and us-west-2 (N. Virginia and Oregon).
+
+
+Resources:
+  DockerBucketRepository:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/docker-bucket-repository.yaml
+  CopyFiles:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/copy.yaml
+      Parameters:
+        QSS3BucketName: !Ref QSS3BucketName
+        QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        DestinationBucket: !GetAtt DockerBucketRepository.Outputs.ArtifactBucket
+  WaitHandleContainerBuild:
+    Type: AWS::CloudFormation::WaitConditionHandle
+  ContainerBuild:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+    - CopyFiles
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/container-build.yaml
+      Parameters:
+        ArtifactBucket: !GetAtt DockerBucketRepository.Outputs.ArtifactBucket
+        ArtifactKey: !Ref QSS3KeyPrefix
+        ServiceName: dragen
+        Repository: !GetAtt DockerBucketRepository.Outputs.Repository
+        WaitHandle: !Ref WaitHandleContainerBuild
+  WaitConditionContainerBuild:
+    Type: AWS::CloudFormation::WaitCondition
+    DependsOn:
+    - ContainerBuild
+    Properties:
+      Handle:
+        Ref: WaitHandleContainerBuild
+      Timeout: '3600'
+      Count: 1
+  Batch:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - ContainerBuild
+      - WaitConditionContainerBuild
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/dragen-batch.yaml
+      Parameters:
+        GenomicsS3Bucket: !Ref GenomicsS3Bucket
+        DragenDockerImage: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${DockerBucketRepository.Outputs.Repository}:dragen
+        OperationsDataBucket: !Ref OperationsDataBucket
+        QSS3BucketName: !Ref QSS3BucketName
+        QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        VpcId: !Ref VpcId
+        SubnetIds: !Sub "${PrivateSubnet1ID}, ${PrivateSubnet2ID}, ${PrivateSubnet3ID}, ${PrivateSubnet4ID}"
+        BidPercentage: !Ref BidPercentage
+        InstanceType: !Ref InstanceType
+        ImageId: !FindInMap [ AWSAMIRegionMap, !Ref "AWS::Region", DRAGEN ]
+        Ec2KeyPair: !Ref KeyPairName
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        RetryNumber: !Ref RetryNumber
+        DragenTimeout: !Ref DragenTimeout
+        EnvironmentValue: !Ref EnvironmentValue
+  CleanupRole:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: "arn:aws:iam::136669306241:policy/OperatorsGroup-Boundary"
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: ConfigPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Sid: Logging
+            Effect: Allow
+            Action: logs:*
+            Resource: '*'
+          - Sid: ECR
+            Effect: Allow
+            Action: ecr:*
+            Resource: !Sub arn:aws:ecr:${AWS::Region}:${AWS::AccountId}:repository/${DockerBucketRepository.Outputs.Repository}
+          - Sid: S3Bucket
+            Effect: Allow
+            Action: s3:*
+            Resource: !Sub arn:aws:s3:::${DockerBucketRepository.Outputs.ArtifactBucket}
+          - Sid: S3Object
+            Effect: Allow
+            Action: s3:*
+            Resource: !Sub arn:aws:s3:::${DockerBucketRepository.Outputs.ArtifactBucket}/*
+  ContainerCleanup:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+    - CopyFiles
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/clean-bucket-repository.yaml
+      Parameters:
+        Bucket: !GetAtt DockerBucketRepository.Outputs.ArtifactBucket
+        Repository: !GetAtt DockerBucketRepository.Outputs.Repository
+        QSS3BucketName: !Ref QSS3BucketName
+        QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        RoleArn: !GetAtt CleanupRole.Arn
+        LambdaZipsBucket: !GetAtt DockerBucketRepository.Outputs.ArtifactBucket 

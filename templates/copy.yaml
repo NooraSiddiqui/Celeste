@@ -1,0 +1,75 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: This CloudFormation Template invokes another template responsible for
+  copying files to a local region S3 Bucket for AWS Lambda.
+
+
+Parameters:
+  QSS3BucketName:
+    Description: The Template Bucket Name.
+    Type: String
+  QSS3KeyPrefix:
+    Description: The Template Bucket Prefix.
+    Type: String
+  DestinationBucket:
+    Type: String
+    Default: ""
+
+
+Resources:
+  CopyRole:
+    Type: AWS::IAM::Role
+    Properties:
+      PermissionsBoundary: "arn:aws:iam::136669306241:policy/OperatorsGroup-Boundary"
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: ConfigPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+          - Sid: Logging
+            Effect: Allow
+            Action: logs:*
+            Resource: '*'
+          - Sid: S3Get
+            Effect: Allow
+            Action: 
+            - s3:GetObject
+            Resource: !Sub arn:aws:s3:::${QSS3BucketName}/${QSS3KeyPrefix}*
+          - Sid: S3Put
+            Effect: Allow
+            Action:
+            - s3:PutObject
+            - s3:DeleteObject
+            Resource: !Sub arn:aws:s3:::${DestinationBucket}/*
+  CopyZips:
+    Type: AWS::CloudFormation::CustomResource
+    DependsOn: CopyRole
+    Properties:
+      ServiceToken: !GetAtt CopyZipsFunction.Arn
+      DestRegion: !Ref AWS::Region
+      DestBucket: !Ref DestinationBucket
+      SourceBucket: !Ref QSS3BucketName
+      Prefix: !Ref QSS3KeyPrefix
+      Objects: 
+      - "app/packages/dragen/dragen.zip"
+      - "app/packages/updateConfig/updateConfigLambda.zip"
+      - "app/packages/cleanRepo/cleanRepoLambda.zip"
+  CopyZipsFunction:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Copies objects from a source S3 bucket to a destination
+      Handler: copyZipsLambda.handler
+      Runtime: python3.8
+      Role: !GetAtt CopyRole.Arn
+      Timeout: 240
+      Code:
+        S3Bucket: !Sub ${QSS3BucketName}
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/copyZips/copyZipsLambda.zip

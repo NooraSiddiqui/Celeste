@@ -1,0 +1,1 @@
+This repo contains derivative work from the Amazon Web Services QuickStart "Illumina DRAGEN on AWS", source code here: https://github.com/aws-quickstart/quickstart-illumina-dragen

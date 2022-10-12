@@ -1,0 +1,138 @@
+[
+  {
+    "ParameterKey": "AvailabilityZones",
+    "ParameterValue": "us-east-1b, us-east-1c, us-east-1d, us-east-1e"
+  },
+  {
+    "ParameterKey": "AlignstatsImageRepo",
+    "ParameterValue": "alignstats0.9.1"
+  }, 
+  {
+    "ParameterKey": "BidPercentage",
+    "ParameterValue": "100"
+  },
+  {
+    "ParameterKey": "DesiredvCpus",
+    "ParameterValue": "0"
+  },
+  {
+    "ParameterKey": "DragenInstanceType",
+    "ParameterValue": "f1.4xlarge"
+  },
+  {
+    "ParameterKey": "DragenTimeout",
+    "ParameterValue": "86400"
+  },
+  {
+    "ParameterKey": "EnvironmentValue",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "GenomicsS3Bucket",
+    "ParameterValue": "prod"
+  },
+  {
+    "ParameterKey": "KeyPairName",
+    "ParameterValue": "KeyPair"
+  },
+  {
+    "ParameterKey": "MinvCpus",
+    "ParameterValue": "0"
+  },
+  {
+    "ParameterKey": "OperationsDataBucket",
+    "ParameterValue": "op-data-bucket"
+  },
+  {
+    "ParameterKey": "PrivateSubnet1CIDR",
+    "ParameterValue": "10.10.0.0/19"
+  },
+  {
+    "ParameterKey": "PrivateSubnet2CIDR",
+    "ParameterValue": "10.10.33.0/19"
+  },
+  {
+    "ParameterKey": "PrivateSubnet3CIDR",
+    "ParameterValue": "10.10.64.0/19"
+  },
+  {
+    "ParameterKey": "PrivateSubnet4CIDR",
+    "ParameterValue": "10.10.96.0/19"
+  },
+  {
+    "ParameterKey": "PublicSubnet1CIDR",
+    "ParameterValue": "10.10.128.0/20"
+  },
+  {
+    "ParameterKey": "PublicSubnet2CIDR",
+    "ParameterValue": "10.10.145.0/20"
+  },
+  {
+    "ParameterKey": "QSS3BucketName",
+    "ParameterValue": "op-data"
+  },
+  {
+    "ParameterKey": "QSS3KeyPrefix",
+    "ParameterValue": "cloudformation/clinical-dragen-prod/"
+  },
+  {
+    "ParameterKey": "ReportsInstanceType",
+    "ParameterValue": "m5a.large"
+  },
+  {
+    "ParameterKey": "ReportsPlusInstanceType",
+    "ParameterValue": "m5a.xlarge"
+  },
+  {
+    "ParameterKey": "IntervarInstanceType",
+    "ParameterValue": "m5a.2xlarge"
+  },
+  {
+    "ParameterKey": "RetryNumber",
+    "ParameterValue": "5"
+  },
+  {
+    "ParameterKey": "ScandiumImageRepo",
+    "ParameterValue": "scandium1.4.2/htslib1.10.2"
+  },
+  {
+    "ParameterKey": "LiftoverIntersectImageRepo",
+    "ParameterValue": "liftover-intersect"
+  },
+  {
+    "ParameterKey": "LiftoverPreprocessingImageRepo",
+    "ParameterValue": "liftover-preprocessing"
+  },
+  {
+    "ParameterKey": "LiftoverImageRepo",
+    "ParameterValue": "liftover-liftover"
+  },
+  {
+    "ParameterKey": "StargazerImageRepo",
+    "ParameterValue": "stargazer1.0.9"
+  },
+  {
+    "ParameterKey": "VerifyBamIDImageRepo",
+    "ParameterValue": "verifybamid1.1.3"
+  },
+  {
+    "ParameterKey": "IntervarImageRepo",
+    "ParameterValue": "intervar"
+  },
+  {
+    "ParameterKey": "MpileupImageRepo",
+    "ParameterValue": "mpileup"
+  },
+  {
+    "ParameterKey": "CassandraImageRepo",
+    "ParameterValue": "cassandra-cassandra"
+  },
+  {
+    "ParameterKey": "ConcordanceImageRepo",
+    "ParameterValue": "ngird:fingerprint_1.3.0"
+  },
+  {
+    "ParameterKey": "VPCCIDR",
+    "ParameterValue": "10.10.0.0/16"
+  }
+]

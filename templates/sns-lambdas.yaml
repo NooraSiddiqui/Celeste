@@ -1,0 +1,495 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: This CloudFormation Template creates the following resources
+  to automate and orchestrate the generation of QC reports 
+  (1) two SNS topics and access policies to recieve S3 event notifications
+      (one for hs37d5 and one for GRCh38 workflows)
+  (2) six lambda functions (*BatchJobLauncher) subscribed to one of the two SNS
+      topics. Each lambda submits reports jobs to AWS Batch for an alignment file
+  (3) one lambda function (S3TagLambda) that tags all new objects for archival
+      and data-delivery
+  (4) IAM roles and lambda invoke permissions for the above
+  Summary, S3 event --> SNS topic --(fanout)-> Lambdas --> Batch reports jobs
+  (Specific for hs37d5 and GRCh38)
+  Note, S3 events for a pre-existing bucket must be configured outside of CFn
+  and connectede with the SNS topics
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: BATCH Quick Start Configuration 
+      Parameters:
+      - GenomicsS3Bucket
+    - Label:
+        default: AWS Quick Start Configuration
+      Parameters:
+        - LambdaZipsBucket 
+        - QSS3KeyPrefix
+    - Label:
+        default: AWS Environment Configuration
+      Parameters:
+        - EnvironmentValue    
+    ParameterLabels:
+      GenomicsS3Bucket:
+        default: Genomics Data Bucket
+      QSS3KeyPrefix:
+        default: Quick Start S3 Key Prefix
+      EnvironmentValue:
+        default: Environment Value
+
+Parameters:
+  GenomicsS3Bucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 genomics bucket name can include numbers,
+      lowercase letters, uppercase letters, and hyphens (-). It cannot
+      start or end with a hyphen (-).
+    Description: Name of S3 bucket for reading and writing genomics data.
+    Type: String
+  LambdaZipsBucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with
+      a hyphen (-).
+    Description: Bucket name containing lambda zip files
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers,
+      lowercase letters, uppercase letters, hyphens (-), and a forward slash
+      (/) at the end of the prefix.
+    Description: S3 key prefix for the Quick Start assets. Contains path to Lambda code.
+    Type: String
+  EnvironmentValue:
+    Description: Environment to deploy. Will be appended as a suffix to select resources.
+    Type: String
+
+
+Resources:
+  LambdaBasicExecutionPlusBatchRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: LambdaExecutionPlusBatch
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            Effect: Allow
+            Action: 
+              - "batch:SubmitJob"
+              - "batch:TagResource"
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              - "s3:ListBucket"
+              - "s3:GetObject"
+              - "s3:GetObjectVersionTagging"
+              - "s3:GetObjectVersion"
+              - "s3:GetObjectTagging"
+            Resource: '*'
+  LambdaExecutionAndS3TagRole:
+    Type: AWS::IAM::Role
+    Properties:
+      Path: /
+      AssumeRolePolicyDocument:
+        Version: 2012-10-17
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service: lambda.amazonaws.com
+          Action: sts:AssumeRole
+      Policies:
+      - PolicyName: LambdaExecutionAndS3TagPolicy
+        PolicyDocument:
+          Version: 2012-10-17
+          Statement:
+            Effect: Allow
+            Action:
+              - "s3:DeleteObjectTagging"
+              - "s3:DeleteObjectVersionTagging"
+              - "s3:GetObjectTagging"
+              - "s3:GetObjectVersion"
+              - "s3:GetObjectVersionTagging"
+              - "s3:PutObjectTagging"
+              - "s3:ListBucket"
+              - "logs:CreateLogGroup"
+              - "logs:CreateLogStream"
+              - "logs:PutLogEvents"
+              - "batch:DescribeJobs"
+            Resource: '*'
+  S3TagLambda:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification
+        and assigns archival and data-delivery tags
+      FunctionName: !Sub S3TagLambda-${EnvironmentValue}
+      Handler: 'S3TagLambda.lambda_handler'
+      Role: !GetAtt LambdaExecutionAndS3TagRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/S3TagLambda.zip
+      Runtime: python3.8
+      Timeout: 100
+  AlignstatsBatchJobLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new bam) and submits
+        Alignstats batch job
+      FunctionName: !Sub AlignstatsBatchJobLaunch-${EnvironmentValue}
+      Handler: 'Alignstats-BatchJobLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/Alignstats-BatchJobLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  38AlignstatsBatchJobLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new bam) and submits
+        Alignstats batch job, specific to GRCh38 workflow
+      FunctionName: !Sub AlignstatsBatchJobLaunch-38-${EnvironmentValue}
+      Handler: 'Alignstats-38-BatchJobLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/Alignstats-38-BatchJobLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  VerifyBamIDBatchJobLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new bam) and submits
+        verifyBamID batch job
+      FunctionName: !Sub VerifyBamIDBatchJobLauncher-${EnvironmentValue}
+      Handler: 'VerifyBamID-38-BatchJobLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/VerifyBamID-38-BatchJobLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new hard-filtered.vcf.gz) and submits Intersect batch job
+      FunctionName: !Sub LiftoverIntersectLauncher-${EnvironmentValue}
+      Handler: 'IntersectLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/IntersectLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  LiftoverPreprocessingLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new hard-filtered.vcf) and submits Liftover Preprocessing batch job
+      FunctionName: !Sub LiftoverPreprocessingLauncher-${EnvironmentValue}
+      Handler: 'PreprocessingLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/PreprocessingLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  LiftoverLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new hard-filtered.vcf) and submits Liftover batch job
+      FunctionName: !Sub LiftoverLauncher-${EnvironmentValue}
+      Handler: 'LiftoverLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/LiftoverLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  StargazerLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new hard-filtered.vcf) and submits Stargazer batch job
+      FunctionName: !Sub StargazerLauncher-${EnvironmentValue}
+      Handler: 'StargazerLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/StargazerLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  IntervarLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new hard-filtered.vcf) and submits Intervar batch job
+      FunctionName: !Sub IntervarLauncher-${EnvironmentValue}
+      Handler: 'IntervarLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/IntervarLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  MpileupCassandraLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new hard-filtered.vcf) and submits Mpileup-Cassandra batch job
+      FunctionName: !Sub MpileupCassandra-${EnvironmentValue}
+      Handler: 'MpileupCassandraLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/MpileupCassandraLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  CassandraLauncher:
+    Type: AWS::Lambda::Function
+    Properties:
+      Description: Parses SNS topic for S3 notification (new SAMTOOLS_pileup) and submits Cassandra batch job
+      FunctionName: !Sub CassandraLauncher-${EnvironmentValue}
+      Handler: 'CassandraLauncher.lambda_handler'
+      Role: !GetAtt LambdaBasicExecutionPlusBatchRole.Arn
+      Code:
+        S3Bucket: !Ref LambdaZipsBucket
+        S3Key: !Sub ${QSS3KeyPrefix}app/packages/lambdas/CassandraLauncher.zip
+      Runtime: python3.8
+      Timeout: 100
+  NewObjectSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties: 
+      DisplayName: NewObjectSNSTopic
+      TopicName: !Sub NewObjectSNSTopic-${EnvironmentValue}
+      Subscription: 
+        - Endpoint: !GetAtt 
+            - AlignstatsBatchJobLauncher
+            - Arn
+          Protocol: lambda
+        - Endpoint: !GetAtt
+            - S3TagLambda 
+            - Arn
+          Protocol: lambda
+  38NewObjectSNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      DisplayName: NewObjectSNSTopic
+      TopicName: !Sub NewObjectSNSTopic-38-${EnvironmentValue}
+      Subscription:
+        - Endpoint: !GetAtt
+            - 38AlignstatsBatchJobLauncher
+            - Arn
+          Protocol: lambda
+        - Endpoint: !GetAtt
+            - VerifyBamIDBatchJobLauncher
+            - Arn
+          Protocol: lambda
+        - Endpoint: !GetAtt
+            - LiftoverIntersectLauncher
+            - Arn
+          Protocol: lambda
+        - Endpoint: !GetAtt
+            - LiftoverPreprocessingLauncher
+            - Arn
+          Protocol: lambda
+        - Endpoint: !GetAtt
+            - LiftoverLauncher
+            - Arn
+          Protocol: lambda
+        - Endpoint: !GetAtt
+            - StargazerLauncher
+            - Arn
+          Protocol: lambda
+        - Endpoint: !GetAtt
+            - S3TagLambda
+            - Arn
+          Protocol: lambda
+        - Endpoint: !GetAtt
+            - IntervarLauncher
+            - Arn
+          Protocol: lambda
+  NewObjectSNSTopicAccessPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref NewObjectSNSTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: __default_statement_ID
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - "SNS:Publish"
+              - "SNS:RemovePermission"
+              - "SNS:SetTopicAttributes"
+              - "SNS:DeleteTopic"
+              - "SNS:ListSubscriptionsByTopic"
+              - "SNS:GetTopicAttributes"
+              - "SNS:Receive"
+              - "SNS:AddPermission"
+              - "SNS:Subscribe"
+            Resource: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:NewObjectSNSTopic-${EnvironmentValue} # NOTE !GetAtt NewObjectSNSTopic.Arn not valid 
+            Condition:
+              StringEquals:
+                AWS:SourceOwner: !Sub ${AWS::AccountId}
+          - Sid: GenomicsS3Bucket_sub
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - "SNS:Publish"
+            Resource: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:NewObjectSNSTopic-${EnvironmentValue} # NOTE !GetAtt NewObjectSNSTopic.Arn not valid
+            Condition:
+              StringEquals:
+                aws:SourceArn: !Sub arn:aws:s3:::${GenomicsS3Bucket}
+  38NewObjectSNSTopicAccessPolicy:
+    Type: AWS::SNS::TopicPolicy
+    Properties:
+      Topics:
+        - !Ref 38NewObjectSNSTopic
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Sid: __default_statement_ID
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - "SNS:Publish"
+              - "SNS:RemovePermission"
+              - "SNS:SetTopicAttributes"
+              - "SNS:DeleteTopic"
+              - "SNS:ListSubscriptionsByTopic"
+              - "SNS:GetTopicAttributes"
+              - "SNS:Receive"
+              - "SNS:AddPermission"
+              - "SNS:Subscribe"
+            Resource: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:NewObjectSNSTopic-38-${EnvironmentValue} # NOTE !GetAtt NewObjectSNSTopic.Arn not valid
+            Condition:
+              StringEquals:
+                AWS:SourceOwner: !Sub ${AWS::AccountId}
+          - Sid: GenomicsS3Bucket_sub
+            Effect: Allow
+            Principal:
+              AWS: "*"
+            Action:
+              - "SNS:Publish"
+            Resource: !Sub arn:aws:sns:${AWS::Region}:${AWS::AccountId}:NewObjectSNSTopic-38-${EnvironmentValue} # NOTE !GetAtt NewObjectSNSTopic.Arn not valid
+            Condition:
+              StringEquals:
+                aws:SourceArn: !Sub arn:aws:s3:::${GenomicsS3Bucket} 
+  AlignStatsLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref NewObjectSNSTopic
+      FunctionName: !GetAtt 
+        - AlignstatsBatchJobLauncher
+        - Arn
+  38AlignStatsLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref 38NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - 38AlignstatsBatchJobLauncher
+        - Arn
+  VerifyBamIDLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref 38NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - VerifyBamIDBatchJobLauncher
+        - Arn
+  LiftoverIntersectLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref 38NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - LiftoverIntersectLauncher
+        - Arn
+  LiftoverPreprocessingLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref 38NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - LiftoverPreprocessingLauncher
+        - Arn
+  LiftoverLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref 38NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - LiftoverLauncher
+        - Arn
+  StargazerLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref 38NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - StargazerLauncher
+        - Arn
+  IntervarLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref 38NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - IntervarLauncher
+        - Arn
+  MpileupCassandraLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - MpileupCassandraLauncher
+        - Arn
+  CassandraLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - CassandraLauncher
+        - Arn
+  S3TagLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - S3TagLambda
+        - Arn
+  38S3TagLambdaInvokePermission:
+    Type: AWS::Lambda::Permission
+    Properties:
+      Action: "lambda:InvokeFunction"
+      Principal: sns.amazonaws.com
+      SourceArn: !Ref 38NewObjectSNSTopic
+      FunctionName: !GetAtt
+        - S3TagLambda
+        - Arn

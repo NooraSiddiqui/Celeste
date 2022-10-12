@@ -1,0 +1,645 @@
+AWSTemplateFormatVersion: 2010-09-09
+
+Description: This CloudFormation template creates an environment to run HGSC
+  genomics workflow QC reporting tools (e.g. alignstats). Provisions an AWS
+  Batch environment to launch reporting jobs, generates related roles and 
+  policies, and supplies automation configuration (SNS topic, Lambda functions).
+  Launches in an existing VPC as a standalone parent stack with nested 
+  Batch roles/policies/groups creation and SNS/Lambdas configuration. AMI ID 
+  and Docker Image arns must be updated for new releases .
+
+
+Metadata:
+  AWS::CloudFormation::Interface:
+    ParameterGroups:
+    - Label:
+        default: Network Configuration
+      Parameters:
+        - VpcId
+        - SubnetIds
+    - Label:
+        default: BATCH Quick Start Configuration
+      Parameters:
+        - BidPercentage
+        - KeyPairName
+        - MinvCpus
+        - DesiredvCpus
+        - InstanceType
+        - PlusInstanceType
+        - IntervarInstanceType
+        - RetryNumber
+        - GenomicsS3Bucket
+        - OperationsDataBucket
+        - AlignstatsImageRepo
+        - VerifyBamIDImageRepo
+        - LiftoverIntersectImageRepo
+        - LiftoverPreprocessingImageRepo
+        - LiftoverImageRepo
+        - StargazerImageRepo
+        - IntervarImageRepo
+        - MpileupImageRepo
+        - CassandraImageRepo
+        - ConcordanceImageRepo
+    - Label:
+        default: AWS Quick Start Configuration
+      Parameters:
+        - QSS3BucketName
+        - QSS3KeyPrefix
+    - Label:
+        default: AWS Environment Configuration
+      Parameters:
+        - EnvironmentValue
+  ParameterLabels:
+      GenomicsS3Bucket:
+        default: Genomics Data Bucket
+      OperationsDataBucket:
+        default: Operations Data Bucket
+      RetryNumber:
+        default: AWS Batch Retry Number
+      KeyPairName:
+        default: Key Pair Name
+      SubnetIds:
+        default: Subnet Ids
+      VpcId:
+        default: Vpc Id
+      InstanceType:
+        default: Instance Type
+      PlusInstanceType:
+        default: Plus Instance Type
+      IntervarInstanceType:
+        default: Intervar Instance Type
+      BidPercentage:
+        default: Spot Bid Percentage
+      MinvCpus:
+        default: Min vCPUs
+      DesiredvCpus:
+        default: Desired vCPUs
+      QSS3BucketName:
+        default: Quick Start S3 Bucket Name
+      QSS3KeyPrefix:
+        default: Quick Start S3 Key Prefix
+      EnvironmentValue:
+        default: Environment Value
+      AlignstatsImageRepo:
+        default: Alignstats Image Repo
+      VerifyBamIDImageRepo:
+        default: VerifyBamID Image Repo
+      LiftoverIntersectImageRepo:
+        default: Liftover Intersect Image Repo
+      LiftoverPreprocessingImageRepo:
+        default: Liftover Preprocessing Image Repo
+      LiftoverImageRepo:
+        default: Liftover Image Repo
+      StargazerImageRepo:
+        default: Stargazer Image Repo
+      IntervarImageRepo:
+          default: Intervar Image Repo
+      CassandraImageRepo:
+          default: Cassandra Image Repo
+      MpileupImageRepo:
+          default: Mpileup-cassandra Image Repo
+      ConcordanceImageRepo:
+          default: Concordance Image Repo
+
+
+Parameters:
+  QSS3BucketName:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: Quick Start bucket name can include numbers, lowercase
+      letters, uppercase letters, and hyphens (-). It cannot start or end with
+      a hyphen (-).
+    Description: S3 bucket name for the Quick Start assets.
+    Type: String
+  QSS3KeyPrefix:
+    AllowedPattern: ^[0-9a-zA-Z-/]*$
+    ConstraintDescription: Quick Start key prefix can include numbers,
+      lowercase letters, uppercase letters, hyphens (-), and a forward slash
+      (/) at the end of the prefix.
+    Description: S3 key prefix for the Quick Start assets.
+    Type: String
+  GenomicsS3Bucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 genomics bucket name can include numbers, 
+      lowercase letters, uppercase letters, and hyphens (-). It cannot 
+      start or end with a hyphen (-).
+    Description: Name of S3 bucket for reading and writing genomics data.
+    Type: String
+  OperationsDataBucket:
+    AllowedPattern: ^[0-9a-zA-Z]+([0-9a-zA-Z-]*[0-9a-zA-Z])*$
+    ConstraintDescription: S3 genomics bucket name can include numbers,
+      lowercase letters, uppercase letters, and hyphens (-). It cannot
+      start or end with a hyphen (-).
+    Description: Name of S3 bucket for reading genomics operations data
+      such as bed files, references, etc.
+    Type: String
+  VpcId:
+    Type: AWS::EC2::VPC::Id
+    Description: The ID of your existing VPC (e.g., vpc-0343606e).
+  SubnetIds:
+    Type: List<AWS::EC2::Subnet::Id>
+    Description: Subnets you want your batch compute environment to launch in. Must be private subnets and in the VPC specified by VpcId.
+  BidPercentage:
+    AllowedPattern: (?:\b|-)([1-9]{1,2}[0]?|100)\b
+    ConstraintDescription: Spot Bid should be between 1 and 100, inclusive.
+    Description: The bid percentage set for the AWS Batch Managed Compute
+      Environment with Spot Instances.
+    Type: String
+  KeyPairName:
+    Type: AWS::EC2::KeyPair::KeyName
+    Description: Public/private key pairs allow you to securely connect to your instance after it launches
+  MinvCpus:
+    Type: String
+    Description: Minimum number of vCPUs in the compute environment. Default 0.
+    Default: 0
+    AllowedPattern: "[0-9]+"
+  DesiredvCpus:
+    Type: String
+    Description: Desired number of vCPUs. Compute environments will provision
+      this number of vCPUs at launch time. Default 0.
+    Default: 0
+    AllowedPattern: "[0-9]+"
+  RetryNumber:
+    Type: String
+    Default: "5"
+    Description: Number of retries for each AWS Batch job. Integer required.
+    MaxLength: 1
+    AllowedPattern: (?:\b|-)([1-9]|10)\b
+    ConstraintDescription: Value between 1 and 10
+  InstanceType:
+    AllowedValues:
+    - m5.large
+    - m5a.large
+    - m6g.large
+    Description: EC2 instance type for running reports in AWS Batch
+    Type: String
+  PlusInstanceType:
+    AllowedValues:
+    - m5.xlarge
+    - m5a.xlarge
+    - m6g.xlarge
+    Description: EC2 instance type for running more compute intensive reports in AWS Batch (xlarge)
+    Type: String
+  IntervarInstanceType:
+    AllowedValues:
+    - m5.large
+    - m5a.large
+    - m5.xlarge
+    - m5a.xlarge
+    - m5a.2xlarge
+    - m6g.large
+    - m6g.xlarge
+    - m6g.2xlarge
+    Description: EC2 instance type for running reports in AWS Batch
+    Type: String
+  EnvironmentValue:
+    Description: Environment to deploy. Will be appended as a suffix to select resources.
+    Type: String
+  AlignstatsImageRepo:
+    Type: String
+    Description: AWS ECR repository name for alignstats docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  VerifyBamIDImageRepo:
+    Type: String
+    Description: AWS ECR repository name for verifyBamID docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  LiftoverIntersectImageRepo:
+    Type: String
+    Description: AWS ECR repository name for liftover-intersect docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  LiftoverPreprocessingImageRepo:
+    Type: String
+    Description: AWS ECR repository name for liftover-preprocessing docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  LiftoverImageRepo:
+    Type: String
+    Description: AWS ECR repository name for liftover docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  StargazerImageRepo:
+    Type: String
+    Description: AWS ECR repository name for stargazer docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  IntervarImageRepo:
+    Type: String
+    Description: AWS ECR repository name for intervar docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  MpileupImageRepo:
+    Type: String
+    Description: AWS ECR repository name for aws-pileup docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  CassandraImageRepo:
+    Type: String
+    Description: AWS ECR repository name for cassandra docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[._-][a-z0-9]+)*/)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+  ConcordanceImageRepo:
+    Type: String
+    Description: AWS ECR repository name for fingerprint docker image
+    AllowedPattern: (?:[a-z0-9]+(?:[:._-][a-z0-9]+)*)*[a-z0-9]+(?:[._-][a-z0-9]+)*
+
+
+Mappings:
+  AWSAMIRegionMap:
+    us-west-2: 
+      REPORTS: ami-030d6cd54382ee2d4
+    us-east-1:
+      REPORTS: ami-013368c7d931911ce #ami-0feba5653def75f06
+
+
+Rules:
+  KeyPairsNotEmpty:
+    Assertions:
+    - Assert:
+        !Not
+        - Fn::EachMemberEquals:
+          - Fn::RefAll: AWS::EC2::KeyPair::KeyName
+          - ''
+      AssertDescription: All key pair parameters must not be empty
+  SubnetsInVPC:
+    Assertions:
+    - Assert:
+        Fn::EachMemberIn:
+        - Fn::ValueOfAll:
+          - AWS::EC2::Subnet::Id
+          - VpcId
+        - Fn::RefAll: AWS::EC2::VPC::Id
+      AssertDescription: All subnets must be in the VPC
+
+
+Resources:
+  BatchRolesStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/batch-roles.yaml
+      Parameters:
+        VpcId: !Ref VpcId
+        GenomicsS3Bucket: !Ref GenomicsS3Bucket
+        OperationsDataBucket: !Ref OperationsDataBucket
+  SNSLambdasStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: !Sub https://${QSS3BucketName}.s3.amazonaws.com/${QSS3KeyPrefix}templates/sns-lambdas.yaml
+      Parameters:
+        GenomicsS3Bucket: !Ref GenomicsS3Bucket
+        LambdaZipsBucket: !Ref QSS3BucketName
+        QSS3KeyPrefix: !Ref QSS3KeyPrefix
+        EnvironmentValue: !Ref EnvironmentValue
+  ReportsSpot:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub reports-spot-${EnvironmentValue}
+      ServiceRole: !GetAtt BatchRolesStack.Outputs.BatchServiceRole
+      Type: MANAGED
+      State: ENABLED
+      ComputeResources:
+        BidPercentage: !Ref BidPercentage
+        Ec2KeyPair: !Ref KeyPairName
+        ImageId: !FindInMap [AWSAMIRegionMap, !Ref "AWS::Region", REPORTS]
+        InstanceRole: !GetAtt BatchRolesStack.Outputs.InstanceRole
+        InstanceTypes: [!Ref InstanceType]
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        MaxvCpus: 4320 # example: m5a.large instance types have 2 vCPUs each, this limits the env to 2160 reports spot instances
+        SecurityGroupIds: 
+          - !GetAtt BatchRolesStack.Outputs.BatchSecurityGroup
+        SpotIamFleetRole: !GetAtt BatchRolesStack.Outputs.SpotFleetRole
+        Subnets: !Ref SubnetIds 
+        Type: SPOT
+        Tags:
+          purpose: reports
+          env: prod
+          compute: !Sub batch_${InstanceType}_spot
+  ReportsOnDemand:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub reports-ondemand-${EnvironmentValue}
+      ServiceRole: !GetAtt BatchRolesStack.Outputs.BatchServiceRole
+      Type: MANAGED
+      State: ENABLED
+      ComputeResources:
+        Ec2KeyPair: !Ref KeyPairName
+        ImageId: !FindInMap [AWSAMIRegionMap, !Ref "AWS::Region", REPORTS]
+        InstanceRole: !GetAtt BatchRolesStack.Outputs.InstanceRole
+        InstanceTypes: [!Ref InstanceType]
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        MaxvCpus: 3608 # account limit for on demand general purpose instances
+        SecurityGroupIds:
+          - !GetAtt BatchRolesStack.Outputs.BatchSecurityGroup
+        Subnets: !Ref SubnetIds
+        Type: EC2
+        Tags:
+          purpose: reports
+          env: prod
+          compute: !Sub batch_${InstanceType}_ondemand
+  ReportsPlusSpot:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub  reports-plus-spot-${EnvironmentValue}
+      ServiceRole: !GetAtt BatchRolesStack.Outputs.BatchServiceRole
+      Type: MANAGED
+      State: ENABLED
+      ComputeResources:
+        BidPercentage: !Ref BidPercentage
+        Ec2KeyPair: !Ref KeyPairName
+        ImageId: !FindInMap [AWSAMIRegionMap, !Ref "AWS::Region", REPORTS]
+        InstanceRole: !GetAtt BatchRolesStack.Outputs.InstanceRole
+        InstanceTypes: [!Ref PlusInstanceType]
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        MaxvCpus: 4320 # example: m5a.xlarge instances have 4 vCPUs each; 1080 spot reports-plus instances
+        SecurityGroupIds:
+          - !GetAtt BatchRolesStack.Outputs.BatchSecurityGroup
+        SpotIamFleetRole: !GetAtt BatchRolesStack.Outputs.SpotFleetRole 
+        Subnets: !Ref SubnetIds
+        Type: SPOT
+        Tags:
+          purpose: reports
+          env: prod
+          compute: !Sub batch_${PlusInstanceType}_spot
+  ReportsPlusOnDemand:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub  reports-plus-ondemands-${EnvironmentValue}
+      ServiceRole: !GetAtt BatchRolesStack.Outputs.BatchServiceRole
+      Type: MANAGED
+      State: ENABLED
+      ComputeResources:
+        Ec2KeyPair: !Ref KeyPairName
+        ImageId: !FindInMap [AWSAMIRegionMap, !Ref "AWS::Region", REPORTS]
+        InstanceRole: !GetAtt BatchRolesStack.Outputs.InstanceRole
+        InstanceTypes: [!Ref PlusInstanceType]
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        MaxvCpus: 3608
+        SecurityGroupIds:
+          - !GetAtt BatchRolesStack.Outputs.BatchSecurityGroup
+        Subnets: !Ref SubnetIds
+        Type: EC2
+        Tags:
+          purpose: reports
+          env: prod
+          compute: !Sub batch_${PlusInstanceType}_ondemand
+  ReportsJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub reports-queue-${EnvironmentValue}
+      Priority: 70
+      State: ENABLED
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref ReportsSpot
+        - Order: 2
+          ComputeEnvironment: !Ref ReportsOnDemand
+  ReportsPlusJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub reports-plus-queue-${EnvironmentValue}
+      Priority: 70
+      State: ENABLED
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref ReportsPlusSpot
+        - Order: 2
+          ComputeEnvironment: !Ref ReportsPlusOnDemand
+  AlignstatsJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub reports-alignstats-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${AlignstatsImageRepo}
+        Vcpus: 1
+        Memory: 7000
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  VerifyBamIDJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub reports-verifyBamID-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${VerifyBamIDImageRepo}
+        Vcpus: 1
+        Memory: 7000
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  LiftoverIntersectJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub liftover-intersect-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${LiftoverIntersectImageRepo}
+        Vcpus: 1
+        Memory: 15000
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  LiftoverPreprocessingJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub liftover-preprocessing-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${LiftoverPreprocessingImageRepo}
+        Vcpus: 1
+        Memory: 4000
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  LiftoverJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub liftover-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${LiftoverImageRepo}
+        Vcpus: 1
+        Memory: 4000
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  StargazerJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub stargazer-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${StargazerImageRepo}
+        Vcpus: 1
+        Memory: 4000
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  IntervarSpot:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub intervar-spot-${EnvironmentValue}
+      ServiceRole: !GetAtt BatchRolesStack.Outputs.BatchServiceRole
+      Type: MANAGED
+      State: ENABLED
+      ComputeResources:
+        BidPercentage: !Ref BidPercentage
+        Ec2KeyPair: !Ref KeyPairName
+        ImageId: !FindInMap [AWSAMIRegionMap, !Ref "AWS::Region", REPORTS]
+        InstanceRole: "clinical-intervar-s3mount-InstanceRole" 
+        InstanceTypes: [!Ref IntervarInstanceType]
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        MaxvCpus: 4320 # example: m5a.large instance types have 2 vCPUs each, this limits the env to 2160 spot instances
+        SecurityGroupIds: 
+          - !GetAtt BatchRolesStack.Outputs.BatchSecurityGroup
+        SpotIamFleetRole: !GetAtt BatchRolesStack.Outputs.SpotFleetRole
+        Subnets: !Ref SubnetIds 
+        Type: SPOT
+        Tags:
+          purpose: intervar
+          env: prod
+          compute: !Sub batch_${IntervarInstanceType}_spot
+  IntervarOnDemand:
+    Type: AWS::Batch::ComputeEnvironment
+    Properties:
+      ComputeEnvironmentName: !Sub intervar-ondemand-${EnvironmentValue}
+      ServiceRole: !GetAtt BatchRolesStack.Outputs.BatchServiceRole
+      Type: MANAGED
+      State: ENABLED
+      ComputeResources:
+        Ec2KeyPair: !Ref KeyPairName
+        ImageId: !FindInMap [AWSAMIRegionMap, !Ref "AWS::Region", REPORTS]
+        InstanceRole: "clinical-intervar-s3mount-InstanceRole"
+        InstanceTypes: [!Ref IntervarInstanceType]
+        MinvCpus: !Ref MinvCpus
+        DesiredvCpus: !Ref DesiredvCpus
+        MaxvCpus: 3350 # account limit for on demand general purpose instances
+        SecurityGroupIds:
+          - !GetAtt BatchRolesStack.Outputs.BatchSecurityGroup
+        Subnets: !Ref SubnetIds
+        Type: EC2
+        Tags:
+          purpose: intervar
+          env: prod
+          compute: !Sub batch_${IntervarInstanceType}_ondemand
+  IntervarJobQueue:
+    Type: AWS::Batch::JobQueue
+    Properties:
+      JobQueueName: !Sub intervar-queue-${EnvironmentValue}
+      Priority: 70
+      State: ENABLED
+      ComputeEnvironmentOrder:
+        - Order: 1
+          ComputeEnvironment: !Ref IntervarSpot
+        - Order: 2
+          ComputeEnvironment: !Ref IntervarOnDemand
+  IntervarJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub intervar-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${IntervarImageRepo}
+        Vcpus: 1
+        Memory: 7200
+        Privileged: true
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  MpileupJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub aws-mpileup-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${MpileupImageRepo}
+        Vcpus: 2
+        Memory: 15000
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  CassandraJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub cassandra-cassandra-${EnvironmentValue}
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${CassandraImageRepo}
+        Vcpus: 2
+        Memory: 30000
+        Privileged: true
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+  ConcordanceJobDefinition:
+    Type: AWS::Batch::JobDefinition
+    Properties:
+      JobDefinitionName: !Sub fingerprint-clinical-${EnvironmentValue} # adding "clinical" because fingerprint-prod namespace is already used for ngird stack
+      Type: container
+      RetryStrategy:
+        Attempts: !Ref RetryNumber
+      ContainerProperties:
+        Image: !Sub ${AWS::AccountId}.dkr.ecr.${AWS::Region}.amazonaws.com/${ConcordanceImageRepo}
+        Vcpus: 2
+        Memory: 4000
+        Privileged: true
+        JobRoleArn: !GetAtt
+          - BatchRolesStack
+          - Outputs.JobRole
+
+
+Outputs:
+  ReportsSpot:
+    Value: !Ref ReportsSpot
+  ReportsOnDemand:
+    Value: !Ref ReportsOnDemand
+  ReportsPlusSpot:
+    Value: !Ref ReportsPlusSpot
+  ReportsPlusOnDemand:
+    Value: !Ref ReportsPlusOnDemand
+  ReportsJobQueue:
+    Value: !Ref ReportsJobQueue
+  ReportsPlusJobQueue:
+    Value: !Ref ReportsPlusJobQueue
+  AlignstatsJobDefinition:
+    Value: !Ref AlignstatsJobDefinition
+  VerifyBamIDJobDefinition:
+    Value: !Ref VerifyBamIDJobDefinition
+  LiftoverIntersectJobDefinition:
+    Value: !Ref LiftoverIntersectJobDefinition
+  LiftoverPreprocessingJobDefinition:
+    Value: !Ref LiftoverPreprocessingJobDefinition
+  LiftoverJobDefinition:
+    Value: !Ref LiftoverJobDefinition
+  StargazerJobDefinition:
+    Value: !Ref StargazerJobDefinition
+  IntervarSpot:
+    Value: !Ref IntervarSpot
+  IntervarOnDemand:
+    Value: !Ref IntervarOnDemand
+  IntervarJobQueue:
+    Value: !Ref IntervarJobQueue
+  IntervarJobDefinition:
+    Value: !Ref IntervarJobDefinition
+  MpileupJobDefinition:
+    Value: !Ref IntervarJobDefinition
+  CassandraJobDefinition:
+    Value: !Ref IntervarJobDefinition
+  ConcordanceJobDefinition:
+    Value: !Ref ConcordanceJobDefinition

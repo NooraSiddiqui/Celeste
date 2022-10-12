@@ -1,0 +1,156 @@
+## Tracking Files for Archival ##
+
+### Description ###
+* Below is a list of outfiles produced in the clinical-dragen-pipeline, for either
+  merge events, single SEs, the GRCh38 workflow, or the hs37d5 workflow
+* Items with a checkmark represent files that will be tagged for archive:yes via
+  the S3TagLambda also in this repo.
+
+### Dragen Pipeline Outfile List ###
+- [ ] |____dragen
+- [ ] | |____event.json
+- [x] | |____SAMPLE_R2.fastq.gz
+- [x] | |____SAMPLE_R1.fastq.gz
+- [ ] | |____SAMPLE.qc-coverage-region-2_fine_hist.csv
+- [ ] | |____SAMPLE.qc-coverage-region-2_cov_report.bed
+- [ ] | |____MERGE_NAME.fastq_list.csv
+- [ ] | |____SAMPLE.baf.bw
+- [ ] | |____SAMPLE.time_metrics.csv
+- [ ] | |____SAMPLE.vc_metrics.csv
+- [ ] | |____SAMPLE.wgs_hist.csv
+- [ ] | |____dragen_log_1580853387.txt
+- [ ] | |____AWS-SN0_64_usage.txt
+- [ ] | |____SAMPLE.pileup.txt
+- [ ] | |____SAMPLE.qc-coverage-region-2_overall_mean_cov.csv
+- [ ] | |____SAMPLE.qc-coverage-region-1_fine_hist.csv
+- [ ] | |____SAMPLE.qc-coverage-region-2_hist.csv
+- [ ] | |____SAMPLE.qc-coverage-region-1_coverage_metrics.csv
+- [ ] | |____SAMPLE.qc-coverage-region-1_contig_mean_cov.csv
+- [ ] | |____SAMPLE-replay.json
+- [ ] | |____SAMPLE.qc-coverage-region-1_ploidy.csv
+- [ ] | |____SAMPLE.hard-filtered.gvcf.gz.tbi
+- [ ] | |____SAMPLE.pcr-model.log
+- [x] | |____SAMPLE.bam
+- [x] | |____SAMPLE.cram
+- [ ] | |____SAMPLE.qc-coverage-region-3_overall_mean_cov.csv
+- [ ] | |____SAMPLE.hard-filtered.vcf.gz.md5sum
+- [x] | |____SAMPLE.hard-filtered.vcf.gz
+- [ ] | |____SAMPLE.pcr-model-0.log
+- [ ] | |____SAMPLE.wgs_ploidy.csv
+- [ ] | |____SAMPLE.wgs_overall_mean_cov.csv
+- [ ] | |____SAMPLE.hard-filtered.gvcf.gz.md5sum
+- [ ] | |____SAMPLE.mapping_metrics.csv
+- [ ] | |____SAMPLE.qc-coverage-region-2_ploidy.csv
+- [ ] | |____SAMPLE.fragment_length_hist.csv
+- [x] | |____SAMPLE.hard-filtered.gvcf.gz
+- [ ] | |____SAMPLE.qc-coverage-region-2_coverage_metrics.csv
+- [ ] | |____SAMPLE.qc-coverage-region-2_contig_mean_cov.csv
+- [ ] | |____SAMPLE.qc-coverage-region-3_cov_report.bed
+- [ ] | |____SAMPLE.hard-filtered.vcf.gz.tbi
+- [ ] | |____SAMPLE.roh_metrics.csv
+- [ ] | |____SAMPLE.wgs_contig_mean_cov.csv
+- [ ] | |____SAMPLE.wgs_fine_hist.csv
+- [ ] | |____SAMPLE.qc-coverage-region-1_cov_report.bed
+- [ ] | |____SAMPLE.bam.bai
+- [ ] | |____SAMPLE.bam.md5sum
+- [ ] | |____SAMPLE.cram.bai
+- [ ] | |____SAMPLE.cram.md5sum
+- [ ] | |____SAMPLE.qc-coverage-region-3_contig_mean_cov.csv
+- [ ] | |____SAMPLE.qc-coverage-region-1_overall_mean_cov.csv
+- [ ] | |____SAMPLE.qc-coverage-region-3_ploidy.csv
+- [ ] | |____SAMPLE.qc-coverage-region-3_fine_hist.csv
+- [ ] | |____SAMPLE.wgs_coverage_metrics.csv
+- [ ] | |____SAMPLE.hard-filtered.baf.bw
+- [ ] | |____SAMPLE.insert-stats.tab
+- [ ] | |____SAMPLE.qc-coverage-region-1_hist.csv
+- [ ] | |____job-speedometer.log
+- [ ] | |____SAMPLE.roh.bed
+- [ ] | |____SAMPLE.qc-coverage-region-3_hist.csv
+- [ ] | |____SAMPLE.qc-coverage-region-3_coverage_metrics.csv
+- [ ] |____reports
+- [ ] | |____VerifyBamID
+- [ ] | | |____SAMPLE.selfSM
+- [ ] | | |____SAMPLE.depthSM
+- [ ] | | |____SAMPLE.log
+- [ ] | | |____verifyBamID_log*.txt
+- [ ] | |____AlignStats
+- [ ] | | |____SAMPLE.alignstats.txt
+- [ ] | | |____SAMPLE.alignstats.json
+- [ ] | | |____alignstats_log*.txt
+- [ ] | |____Scandium
+- [ ] | | |____SAMPLE.bam.WGS_below20x_REPORT.txt
+- [ ] | | |____SAMPLE.bam.WGS_Coverage_Summary_Report.txt
+- [ ] | | |____SAMPLE.bam.WGS_uniformity_REPORT.txt
+- [ ] | | |____scandium_log*.txt
+- [ ] | | |____PGx
+- [ ] | | | |____SAMPLE.bam.Capture_CDS_pct.txt
+- [ ] | | | |____SAMPLE.bam.Capture_AllSites_REPORT.txt
+- [ ] | | | |____SAMPLE.bam.Capture_Coverage_Summary_Report.txt
+- [ ] | | | |____SAMPLE.bam.Capture_Transcript_pct.txt
+- [ ] | | | |____SAMPLE.bam.Capture_Gene_pct.txt
+- [ ] | | | |____SAMPLE.bam.Capture_below20x_REPORT.txt
+- [ ] | | | |____scandium_log*.txt
+- [ ] | | |____ACMG
+- [ ] | | | |____SAMPLE.bam.Capture_CDS_pct.txt
+- [ ] | | | |____SAMPLE.bam.Capture_AllSites_REPORT.txt
+- [ ] | | | |____SAMPLE.bam.Capture_Coverage_Summary_Report.txt
+- [ ] | | | |____SAMPLE.bam.Capture_Transcript_pct.txt
+- [ ] | | | |____SAMPLE.bam.Capture_Gene_pct.txt
+- [ ] | | | |____SAMPLE.bam.Capture_below20x_REPORT.txt
+- [ ] | | | |____scandium_log*.txt
+- [ ] |____liftover
+- [ ] | |____SAMPLE.wgs_ploidy.csv
+- [ ] | |____Intersect_SAMPLE.hard-filtered.vcf
+- [ ] | |____Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf
+- [ ] | |____Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.idx
+- [ ] | |____Preprocessing_Intersect_SAMPLE.hard-filtered.vcf
+- [ ] | |____Preprocessing_Intersect_SAMPLE.hard-filtered_ref_mismatch.vcf
+- [ ] | |____liftover_log_DATE_TIME
+- [ ] | |____rejected_variants.vcf
+- [ ] |____stargazer
+- [ ] | |____cyp2c19_Stargazer_Liftover_Preprocessing_Intersect_BCM_NA12878.1_NA12878.1_1.hard-filtered.vcf.stargazer-genotype.project
+- [ ] | | | |____finalized.vcf
+- [ ] | | | |____phased.log
+- [ ] | | | |____phased.vcf
+- [ ] | | | |____phaseme.vcf
+- [ ] | |____dpyd_Stargazer_Liftover_Preprocessing_Intersect_BCM_NA12878.1_NA12878.1_1.hard-filtered.vcf.stargazer-genotype.project
+- [ ] | | | |____finalized.vcf
+- [ ] | |____g6pd_Stargazer_Liftover_Preprocessing_Intersect_BCM_NA12878.1_NA12878.1_1.hard-filtered.vcf.stargazer-genotype.project
+- [ ] | | | |____finalized.vcf
+- [ ] | |____nudt15_Stargazer_Liftover_Preprocessing_Intersect_BCM_NA12878.1_NA12878.1_1.hard-filtered.vcf.stargazer-genotype.project
+- [ ] | | | |____finalized.vcf
+- [ ] | |____slco1b1_Stargazer_Liftover_Preprocessing_Intersect_BCM_NA12878.1_NA12878.1_1.hard-filtered.vcf.stargazer-genotype.project
+- [ ] | | | |____finalized.vcf
+- [ ] | | | |____phased.log
+- [ ] | | | |____phased.vcf
+- [ ] | | | |____phaseme.vcf
+- [ ] | |____tpmt_Stargazer_Liftover_Preprocessing_Intersect_BCM_NA12878.1_NA12878.1_1.hard-filtered.vcf.stargazer-genotype.project
+- [ ] | | | |____finalized.vcf
+- [ ] | |____ugt1a1_Stargazer_Liftover_Preprocessing_Intersect_BCM_NA12878.1_NA12878.1_1.hard-filtered.vcf.stargazer-genotype.project
+- [ ] | | | |____finalized.vcf
+- [ ] | |____SAMPLE_report.txt
+- [ ] | |____cyp2c19_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.log
+- [ ] | |____cyp2c19_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.txt
+- [ ] | |____dpyd_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.log
+- [ ] | |____dpyd_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.txt
+- [ ] | |____g6pd_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.log
+- [ ] | |____g6pd_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.txt
+- [ ] | |____nudt15_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.log
+- [ ] | |____nudt15_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.txt
+- [ ] | |____slco1b1_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.log
+- [ ] | |____slco1b1_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.txt
+- [ ] | |____tpmt_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.log
+- [ ] | |____tpmt_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.txt
+- [ ] | |____ugt1a1_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.log
+- [ ] | |____ugt1a1_Stargazer_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.vcf.stargazer-genotype.txt
+- [ ] |____Bedtools
+- [ ] | |____Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.subset.vcf
+- [ ] | |____Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.subset.vcf.avinput
+- [ ] |____Intervar
+- [ ] | |____Intervar_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.hg19_multianno.txt
+- [ ] | |____Intervar_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.hg19_multianno.txt.grl_p
+- [ ] | |____Intervar_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.hg19_multianno.txt.intervar
+- [ ] | |____Intervar_Liftover_Preprocessing_Intersect_SAMPLE.hard-filtered.hg19_multianno.txt.intervar.md5sum
+- [ ] | |____intervar_log_DATE
+
+
