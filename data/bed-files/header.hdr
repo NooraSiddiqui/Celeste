@@ -1,0 +1,2 @@
+##INFO=<ID=Gene,Number=1,Type=String,Description="Gene">
+##INFO=<ID=StarAllele,Number=1,Type=String,Description="StarAllele">
